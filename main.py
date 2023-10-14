@@ -47,6 +47,21 @@ class SlashCommand(BaseModel):
     text: str
     response_url: str
 
+
+# Database Setup
+
+def ensure_csv_exists(filename, columns):
+    if not os.path.exists(filename):
+        pd.DataFrame(columns=columns).to_csv(filename, index=False)
+        logger.info(f"{filename} does not exist, creating now.")
+    else:
+        logger.info(f"{filename} found, database setup complete.")
+
+# Ensure CSVs exist
+ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
+ensure_csv_exists('users.csv', ['user', 'username'])
+
+
 """
 FastAPI Routes
 """
@@ -133,6 +148,9 @@ Utility Functions
 """
 
 def prune_historic_data():
+    # Create historic_data.csv if it doesn't already exist
+    ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
+
     # Load and sort the historic data
     historic_data = pd.read_csv('historic_scores.csv')
     historic_data = historic_data.sort_values('timestamp')
@@ -191,6 +209,9 @@ async def fetch_all_messages(channel_id):
 async def process_all_messages(messages):
     processed_data = []
 
+    # If historic_scores.csv does not exist, create it
+    ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
+
     # Load historic scores
     historic_scores_df = pd.read_csv('historic_scores.csv')
 
@@ -228,27 +249,58 @@ async def process_all_messages(messages):
 
 
 async def update_users():
-    try:
-        # Define the Slack client within the function
-        slack_token = os.environ["SLACK_BOT_TOKEN"]
-        client = WebClient(token=slack_token)
+    # Define the Slack client within the function
+    slack_token = os.environ["SLACK_BOT_TOKEN"]
+    client = AsyncWebClient(token=slack_token)
 
-        # Fetch all users from Slack API
-        api_response = client.users_list()
-        users = api_response['members']
+    all_users = []
+    cursor = None
+    max_retries = 5
 
-        # Extract user id and name
-        user_data = [{
-            'user': user['id'],
-            'username': user['profile']['real_name']
-        } for user in users]
+    while True:
+        try:
+            # Fetch all users from Slack API with cursor for pagination
+            api_response = await client.users_list(limit=200, cursor=cursor)
+            users = api_response['members']
+            all_users.extend(users)
 
-        # Save to users.csv
-        users_df = pd.DataFrame(user_data)
-        users_df.to_csv('users.csv', index=False)
+            # Check for further pages
+            cursor = api_response.get('response_metadata', {}).get('next_cursor')
+            if not cursor:
+                break
 
-    except SlackApiError as e:
-        logger.info(f"Error fetching users: {e.response['error']}")
+        except SlackApiError as e:
+            error = e.response['error']
+
+            if error == "ratelimited":
+                # Extract the retry delay from the headers and wait
+                retry_after = int(e.response.headers.get('Retry-After', 1))
+                logger.warning(f"Rate limited. Retrying in {retry_after} seconds...")
+                await asyncio.sleep(retry_after)
+            else:
+                logger.error(f"Error fetching users: {error}")
+                break
+
+        except Exception as e:
+            # Max retries reached, log error and exit
+            if max_retries == 0:
+                logger.error(f"Failed to fetch users after multiple retries: {str(e)}")
+                break
+
+            # Log error, wait, and retry
+            logger.warning(f"Error fetching users: {str(e)}. Retrying in 5 seconds...")
+            await asyncio.sleep(5)
+            max_retries -= 1
+
+    # Extract user id and name
+    user_data = [{
+        'user': user['id'],
+        'username': user['profile']['real_name']
+    } for user in all_users]
+
+    # Save to users.csv
+    users_df = pd.DataFrame(user_data)
+    users_df.to_csv('users.csv', index=False)
 
 
 async def process_event(event):
@@ -298,8 +350,14 @@ def is_api_puzzle_message(message) -> bool:
 
 
 async def generate_leaderboard_message():
+    # If historic_scores.csv does not exist, create it
+    ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
+
     # Load historic scores
     historic_scores_df = pd.read_csv('historic_scores.csv')
+
+    # If users.csv does not exist, create it
+    ensure_csv_exists('users.csv', ['user', 'username'])
 
     # Load user names
     users = pd.read_csv('users.csv')
