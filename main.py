@@ -544,5 +544,9 @@ def get_user_list():
 
 # Main entry point
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        port = os.environ.get("PORT", "5000")
+        port = int(port)
+    except ValueError:
+        port = 5000
+    uvicorn.run("main:app", host='0.0.0.0', port=port, log_level="info")
