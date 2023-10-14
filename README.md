@@ -54,10 +54,6 @@ A Slack bot that processes puzzle results shared in a channel, calculates scores
     **Note:** Keep your `.env` file private and never expose your secrets.
 
 
-4. **Setup Database:**
-
-    Ensure that all necessary CSV files (`historic_scores.csv`, `users.csv`) are set up with the appropriate columns.
-
 ## Usage
 
 ### Running the Application
@@ -67,7 +63,11 @@ A Slack bot that processes puzzle results shared in a channel, calculates scores
     ```bash
     uvicorn main:app --reload
     ```
+   
+2. **Perform Initial Data Pull**
+
+   In Slack, run an initial `/update` command. This will process the entire channel history, create the .csv databases and populate them.
 
 2. **Interact with the Bot:**
 
-    With the application running, interact with the bot on Slack by sharing puzzle results and using the `/update` and `/leaderboard` commands.
+    With the application running, interact with the bot on Slack by sharing puzzle results and using the `/leaderboard` command. As you post scores, the bot will track and update the data. Use /update sparingly to avoid rate limits.
