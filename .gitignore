@@ -1,0 +1,15 @@
+# .gitignore
+
+# Ignore the .env file containing secrets
+.env
+
+# Ignore Python compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# Ignore log files
+*.log
+
+# Ignore the data files
+*.csv
