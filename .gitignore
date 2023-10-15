@@ -13,3 +13,6 @@ __pycache__/
 
 # Ignore the data files
 *.csv
+
+# Ignore IDE-specific files
+.idea/
