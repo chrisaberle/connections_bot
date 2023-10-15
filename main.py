@@ -55,10 +55,6 @@ def ensure_csv_exists(filename, columns):
     dir_path = './volumes/data'
     filepath = os.path.join(dir_path, filename)
 
-    if not os.path.exists(dir_path):
-        os.makedirs(dir_path)
-        logger.info(f"{dir_path} does not exist, creating now.")
-
     if not os.path.exists(filepath):
         pd.DataFrame(columns=columns).to_csv(filepath, index=False)
         logger.info(f"{filepath} does not exist, creating now.")
