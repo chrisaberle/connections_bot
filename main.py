@@ -52,7 +52,7 @@ class SlashCommand(BaseModel):
 # Database Setup
 
 def ensure_csv_exists(filename, columns):
-    dir_path = '../data'
+    dir_path = './data'
     filepath = os.path.join(dir_path, filename)
 
     if not os.path.exists(filepath):
@@ -156,14 +156,14 @@ def prune_historic_data():
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load and sort the historic data
-    historic_data = pd.read_csv('../data/historic_scores.csv')
+    historic_data = pd.read_csv('./data/historic_scores.csv')
     historic_data = historic_data.sort_values('timestamp')
 
     # Drop duplicate entries based on 'user' and 'puzzle_number', keeping the first (or last) occurrence
     historic_data_pruned = historic_data.drop_duplicates(subset=['user', 'puzzle_number'], keep='first')
 
     # Save the new data set
-    historic_data_pruned.to_csv('../data/historic_scores.csv', index=False)
+    historic_data_pruned.to_csv('./data/historic_scores.csv', index=False)
 
 async def fetch_all_messages(channel_id):
     base_url = "https://slack.com/api/conversations.history"
@@ -217,7 +217,7 @@ async def process_all_messages(messages):
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load historic scores
-    historic_scores_df = pd.read_csv('../data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
 
     # Ensure 'puzzle_number' is of type int in the historic data
     historic_scores_df['puzzle_number'] = historic_scores_df['puzzle_number'].astype(int)
@@ -247,7 +247,7 @@ async def process_all_messages(messages):
     # Convert to DataFrame and return
     processed_df = pd.DataFrame(processed_data)
     all_data_df = pd.concat([historic_scores_df, processed_df], ignore_index=True)
-    all_data_df.to_csv('../data/historic_scores.csv', index=False)
+    all_data_df.to_csv('./data/historic_scores.csv', index=False)
 
     return processed_df
 
@@ -304,7 +304,7 @@ async def update_users():
 
     # Save to users.csv
     users_df = pd.DataFrame(user_data)
-    users_df.to_csv('../data/users.csv', index=False)
+    users_df.to_csv('./data/users.csv', index=False)
 
 
 async def process_event(event):
@@ -358,13 +358,13 @@ async def generate_leaderboard_message():
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load historic scores
-    historic_scores_df = pd.read_csv('../data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
 
     # If users.csv does not exist, create it
     ensure_csv_exists('users.csv', ['user', 'username'])
 
     # Load user names
-    users = pd.read_csv('../data/users.csv')
+    users = pd.read_csv('./data/users.csv')
 
     # Calculate total and average scores
     summary_scores = historic_scores_df.groupby('user')['score'].agg(['sum', 'mean']).reset_index()
@@ -461,7 +461,7 @@ async def process_puzzle_message(event):
         return "invalid"
 
     # Add to historic_scores.csv
-    historic_scores_df = pd.read_csv('../data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
 
     # Extract puzzle number
     puzzle_number = extract_puzzle_number(message_text)
@@ -488,7 +488,7 @@ async def process_puzzle_message(event):
         'puzzle_number': [extract_puzzle_number(message_text)]
     })
     historic_scores_df = pd.concat([historic_scores_df, new_row], ignore_index=True)
-    historic_scores_df.to_csv('../data/historic_scores.csv', index=False)
+    historic_scores_df.to_csv('./data/historic_scores.csv', index=False)
 
     return "success"
 
@@ -541,7 +541,7 @@ def get_user_list():
     }
 
     users_df = pd.DataFrame(user_data)
-    users_df.to_csv('../data/users.csv', index=False)
+    users_df.to_csv('./data/users.csv', index=False)
 
     return users_df
 
