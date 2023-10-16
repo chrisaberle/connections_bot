@@ -545,12 +545,12 @@ def get_user_list():
 
     return users_df
 
-# Deprecated in favor of Procfile once moved to hosting evironment
-# # Main entry point
-# if __name__ == "__main__":
-#     try:
-#         port = os.environ.get("PORT", "5000")
-#         port = int(port)
-#     except ValueError:
-#         port = 5000
-#     uvicorn.run("main:app", host='0.0.0.0', port=port, log_level="info")
+Deprecated in favor of Procfile once moved to hosting evironment
+# Main entry point
+if __name__ == "__main__":
+    try:
+        port = os.environ.get("PORT", "5000")
+        port = int(port)
+    except ValueError:
+        port = 5000
+    uvicorn.run("main:app", host='0.0.0.0', port=8000, log_level="info")
