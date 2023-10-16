@@ -55,11 +55,17 @@ def ensure_csv_exists(filename, columns):
     dir_path = './data'
     filepath = os.path.join(dir_path, filename)
 
+    # Create directory if it doesn't exist, deprecated for deployments
+    # if not os.path.exists(dir_path):
+    #     os.makedirs(dir_path)
+    #     logger.info(f"{dir_path} does not exist, creating now.")
+
     if not os.path.exists(filepath):
         pd.DataFrame(columns=columns).to_csv(filepath, index=False)
         logger.info(f"{filepath} does not exist, creating now.")
     else:
         logger.info(f"{filepath} found, database setup complete.")
+
 
 # Ensure CSVs exist
 ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
@@ -545,12 +551,12 @@ def get_user_list():
 
     return users_df
 
-Deprecated in favor of Procfile once moved to hosting evironment
-# Main entry point
-if __name__ == "__main__":
-    try:
-        port = os.environ.get("PORT", "5000")
-        port = int(port)
-    except ValueError:
-        port = 5000
-    uvicorn.run("main:app", host='0.0.0.0', port=8000, log_level="info")
+# Deprecated in favor of Procfile once moved to hosting evironment
+# # Main entry point
+# if __name__ == "__main__":
+#     try:
+#         port = os.environ.get("PORT", "5000")
+#         port = int(port)
+#     except ValueError:
+#         port = 5000
+#     uvicorn.run("main:app", host='0.0.0.0', port=8000, log_level="info")
