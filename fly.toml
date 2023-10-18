@@ -1,0 +1,21 @@
+# fly.toml app configuration file generated for small-wind-8588 on 2023-10-17T10:17:53-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = "small-wind-8588"
+primary_region = "iad"
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+[mounts]
+  source="myapp_data"
+  destination="/app/data"

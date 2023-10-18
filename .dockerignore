@@ -1,0 +1,25 @@
+# flyctl launch added from .gitignore
+# .gitignore
+
+# Ignore the .env file containing secrets
+**/.env
+
+# Ignore Python compiled files
+**/__pycache__
+**/*.pyc
+**/*.pyo
+
+# Ignore log files
+**/*.log
+
+# Ignore the data files
+**/*.csv
+
+# Ignore IDE-specific files
+**/.idea
+
+# flyctl launch added from .idea/.gitignore
+# Default ignored files
+.idea/shelf
+.idea/workspace.xml
+fly.toml

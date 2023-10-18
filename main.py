@@ -52,7 +52,7 @@ class SlashCommand(BaseModel):
 # Database Setup
 
 def ensure_csv_exists(filename, columns):
-    dir_path = './data'
+    dir_path = '/app/data'
     filepath = os.path.join(dir_path, filename)
 
     # Create directory if it doesn't exist, deprecated for deployments
@@ -64,7 +64,7 @@ def ensure_csv_exists(filename, columns):
         pd.DataFrame(columns=columns).to_csv(filepath, index=False)
         logger.info(f"{filepath} does not exist, creating now.")
     else:
-        logger.info(f"{filepath} found, database setup complete.")
+        logger.info(f"{filepath} found.")
 
 
 # Ensure CSVs exist
@@ -79,21 +79,36 @@ FastAPI Routes
 
 @app.post("/slack/commands/update")
 async def update_command(request: Request, background_tasks: BackgroundTasks):
-    # [ ... ] (No changes in the initial part of the function)
+    # Get Slack request headers
+    slack_signature = request.headers.get("X-Slack-Signature")
+    slack_request_timestamp = request.headers.get("X-Slack-Request-Timestamp")
+
+    # Get request body
+    body = await request.body()
+    body_str = body.decode()
+
+    # Validate request
+    req = str.encode(f"v0:{slack_request_timestamp}:") + body
+    request_hash = 'v0=' + hmac.new(SLACK_SIGNING_SECRET, req, hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(request_hash, slack_signature):
+        raise HTTPException(status_code=400, detail="Invalid request")
 
     # Parse command
     command_data = await request.form()
 
-    # Fetch all messages
-    messages = await fetch_all_messages(command_data['channel_id'])
+    # Send a response back to Slack immediately
+    response_text = {
+        "response_type": "in_channel",
+        "text": "Data refresh initiated! Your leaderboard is now as brisk as March in Petaluma."
+    }
 
-    # Move the processing and updating tasks to background tasks
-    background_tasks.add_task(process_all_messages, messages)
+    # Move the fetching and processing to background tasks
+    background_tasks.add_task(fetch_and_process_messages, command_data['channel_id'])
     background_tasks.add_task(update_users)
     background_tasks.add_task(prune_historic_data)
 
-    # Send a response back to Slack immediately
-    return {"response_type": "in_channel", "text": "Data refresh initiated! Your leaderboard is now as brisk as March in Petaluma."}
+    return response_text
 
 
 @app.post("/slack/commands/leaderboard")
@@ -121,6 +136,29 @@ async def leaderboard_command(request: Request):
 
     # Send message back to Slack
     return {"response_type": "in_channel", "text": leaderboard_message}
+
+
+@app.post("/slack/commands/stats")
+async def stats_command(request: Request):
+    # Get Slack request headers
+    slack_signature = request.headers.get("X-Slack-Signature")
+    slack_request_timestamp = request.headers.get("X-Slack-Request-Timestamp")
+
+    # Get request body
+    body = await request.body()
+
+    # Validate request
+    req = str.encode(f"v0:{slack_request_timestamp}:") + body
+    request_hash = 'v0=' + hmac.new(SLACK_SIGNING_SECRET, req, hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(request_hash, slack_signature):
+        raise HTTPException(status_code=400, detail="Invalid request")
+
+    # Generate stats message
+    stats_message = await generate_stats_message()
+
+    # Send message back to Slack
+    return {"response_type": "in_channel", "text": stats_message}
 
 
 @app.post("/slack/events")
@@ -162,14 +200,14 @@ def prune_historic_data():
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load and sort the historic data
-    historic_data = pd.read_csv('./data/historic_scores.csv')
+    historic_data = pd.read_csv('/app/data/historic_scores.csv')
     historic_data = historic_data.sort_values('timestamp')
 
     # Drop duplicate entries based on 'user' and 'puzzle_number', keeping the first (or last) occurrence
     historic_data_pruned = historic_data.drop_duplicates(subset=['user', 'puzzle_number'], keep='first')
 
     # Save the new data set
-    historic_data_pruned.to_csv('./data/historic_scores.csv', index=False)
+    historic_data_pruned.to_csv('/app/data/historic_scores.csv', index=False)
 
 async def fetch_all_messages(channel_id):
     base_url = "https://slack.com/api/conversations.history"
@@ -223,7 +261,7 @@ async def process_all_messages(messages):
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load historic scores
-    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('/app/data/historic_scores.csv')
 
     # Ensure 'puzzle_number' is of type int in the historic data
     historic_scores_df['puzzle_number'] = historic_scores_df['puzzle_number'].astype(int)
@@ -253,9 +291,30 @@ async def process_all_messages(messages):
     # Convert to DataFrame and return
     processed_df = pd.DataFrame(processed_data)
     all_data_df = pd.concat([historic_scores_df, processed_df], ignore_index=True)
-    all_data_df.to_csv('./data/historic_scores.csv', index=False)
+    all_data_df.to_csv('/app/data/historic_scores.csv', index=False)
 
     return processed_df
+
+
+async def fetch_and_process_messages(channel_id):
+    messages = await fetch_all_messages(channel_id)
+    await process_all_messages(messages)
+
+
+async def get_username(user_id: str) -> str:
+    try:
+        slack_token_async = os.environ['SLACK_BOT_TOKEN']
+        client_async = AsyncWebClient(token=slack_token_async)
+
+        user_info_response = await client_async.users_info(user=user_id)
+        if user_info_response['ok']:
+            return user_info_response['user']['name']
+        else:
+            logging.error(f"Couldn't fetch username for {user_id}: {user_info_response['error']}")
+            return None
+    except Exception as e:
+        logging.error(f"Error fetching username for {user_id}: {str(e)}")
+        return None
 
 
 async def update_users():
@@ -310,7 +369,7 @@ async def update_users():
 
     # Save to users.csv
     users_df = pd.DataFrame(user_data)
-    users_df.to_csv('./data/users.csv', index=False)
+    users_df.to_csv('/app/data/users.csv', index=False)
 
 
 async def process_event(event):
@@ -364,13 +423,13 @@ async def generate_leaderboard_message():
     ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
     # Load historic scores
-    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('/app/data/historic_scores.csv')
 
     # If users.csv does not exist, create it
     ensure_csv_exists('users.csv', ['user', 'username'])
 
     # Load user names
-    users = pd.read_csv('./data/users.csv')
+    users = pd.read_csv('/app/data/users.csv')
 
     # Calculate total and average scores
     summary_scores = historic_scores_df.groupby('user')['score'].agg(['sum', 'mean']).reset_index()
@@ -392,20 +451,66 @@ async def generate_leaderboard_message():
     return "\n".join([title_line] + message_lines)
 
 
-async def get_username(user_id: str) -> str:
-    try:
-        slack_token_async = os.environ['SLACK_BOT_TOKEN']
-        client_async = AsyncWebClient(token=slack_token_async)
+async def generate_stats_message():
+    # If historic_scores.csv does not exist, create it
+    ensure_csv_exists('historic_scores.csv', ['user', 'score', 'timestamp', 'puzzle_number'])
 
-        user_info_response = await client_async.users_info(user=user_id)
-        if user_info_response['ok']:
-            return user_info_response['user']['name']
+    # Load historic scores
+    historic_scores_df = pd.read_csv('/app/data/historic_scores.csv')
+    historic_scores_df['timestamp'] = pd.to_datetime(historic_scores_df['timestamp'], unit='s')
+
+    # If users.csv does not exist, create it
+    ensure_csv_exists('users.csv', ['user', 'username'])
+
+    # Load user names
+    users = pd.read_csv('/app/data/users.csv')
+
+    now = pd.Timestamp.now()
+    one_week_ago = now - pd.Timedelta(weeks=1)
+
+    # Calculate the start of the current quarter
+    if now.month <= 3:
+        start_of_quarter = pd.Timestamp(now.year, 1, 1)
+    elif now.month <= 6:
+        start_of_quarter = pd.Timestamp(now.year, 4, 1)
+    elif now.month <= 9:
+        start_of_quarter = pd.Timestamp(now.year, 7, 1)
+    else:
+        start_of_quarter = pd.Timestamp(now.year, 10, 1)
+
+    timeframes = {
+        "Last week": historic_scores_df[historic_scores_df['timestamp'] > one_week_ago],
+        "This quarter": historic_scores_df[historic_scores_df['timestamp'] > start_of_quarter],
+        "All time": historic_scores_df
+    }
+
+    sections = [":bar_chart: *Channel Stats* :bar_chart:\n\n"]
+
+    for title, df in timeframes.items():
+        total_games = len(df)
+
+        if df.empty:
+            top_scorer_name = "N/A"
+            top_avg_scorer_name = "N/A"
+            average_score = 0
         else:
-            logging.error(f"Couldn't fetch username for {user_id}: {user_info_response['error']}")
-            return None
-    except Exception as e:
-        logging.error(f"Error fetching username for {user_id}: {str(e)}")
-        return None
+            top_scorer = df.groupby('user')['score'].sum().idxmax()
+            top_avg_scorer = df.groupby('user')['score'].mean().idxmax()
+            top_scorer_name = users[users['user'] == top_scorer]['username'].iloc[0]
+            top_avg_scorer_name = users[users['user'] == top_avg_scorer]['username'].iloc[0]
+            average_score = df['score'].mean()
+
+        section = (
+            f"*{title}*\n"
+            f"Total games: {total_games}\n"
+            f"Average score: {average_score:.2f}\n"
+            f"Top scorer: {top_scorer_name}\n"
+            f"Top average scorer: {top_avg_scorer_name}\n\n"
+        )
+
+        sections.append(section)
+
+    return "\n".join(sections)
 
 
 async def send_slack_message(channel: str, message: str):
@@ -467,7 +572,7 @@ async def process_puzzle_message(event):
         return "invalid"
 
     # Add to historic_scores.csv
-    historic_scores_df = pd.read_csv('./data/historic_scores.csv')
+    historic_scores_df = pd.read_csv('/app/data/historic_scores.csv')
 
     # Extract puzzle number
     puzzle_number = extract_puzzle_number(message_text)
@@ -494,7 +599,7 @@ async def process_puzzle_message(event):
         'puzzle_number': [extract_puzzle_number(message_text)]
     })
     historic_scores_df = pd.concat([historic_scores_df, new_row], ignore_index=True)
-    historic_scores_df.to_csv('./data/historic_scores.csv', index=False)
+    historic_scores_df.to_csv('/app/data/historic_scores.csv', index=False)
 
     return "success"
 
@@ -533,23 +638,6 @@ def calculate_score(text):
 
     return score
 
-
-def get_user_list():
-    slack_token = os.environ['SLACK_BOT_TOKEN']
-    client = WebClient(token=slack_token)
-
-    response = client.users_list()
-    users = response['members']
-
-    user_data = {
-        'user': [user['id'] for user in users],
-        'username': [user['name'] for user in users]
-    }
-
-    users_df = pd.DataFrame(user_data)
-    users_df.to_csv('./data/users.csv', index=False)
-
-    return users_df
 
 # Deprecated in favor of Procfile once moved to hosting evironment
 # # Main entry point
