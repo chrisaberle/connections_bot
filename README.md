@@ -1,6 +1,6 @@
 # Slack Puzzle Bot 🧩
 
-A Slack bot designed to process puzzle results shared within a channel. It calculates scores, maintains a leaderboard, and provides statistics on-demand.
+A Slack bot designed to process NYT Connections puzzle results shared within a Slack channel. It calculates scores, maintains a leaderboard, and provides statistics on-demand.
 
 ## Table of Contents
 
