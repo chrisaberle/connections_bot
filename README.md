@@ -9,7 +9,6 @@ A Slack bot designed to process NYT Connections puzzle results shared within a S
 - [Setting Up a Slack Bot](#setting-up-a-slack-bot)
 - [Usage](#usage)
 - [Contribute](#contribute)
-- [License](#license)
 
 ## Features
 
