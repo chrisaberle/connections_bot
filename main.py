@@ -100,7 +100,7 @@ async def update_command(request: Request, background_tasks: BackgroundTasks):
     # Send a response back to Slack immediately
     response_text = {
         "response_type": "in_channel",
-        "text": "Data refresh initiated! Your leaderboard is now as brisk as March in Petaluma."
+        "text": "Your data is updating! For very large or busy channels this may take a few moments to complete."
     }
 
     # Move the fetching and processing to background tasks
