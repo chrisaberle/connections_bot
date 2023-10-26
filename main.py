@@ -604,7 +604,7 @@ async def process_puzzle_message(event):
 
     return "success"
 
-def guesses_by_round():
+def guesses_by_round(text):
     # Replace square names in text with single-character emojis
     for square_name, square_char in square_dict.items():
         text = text.replace(square_name, square_char)
@@ -614,13 +614,13 @@ def guesses_by_round():
     for i in range(0, len(flat), 4):
         yield flat[i:i + 4]
 
-def calculate_score(text):
-    def round_value(guesses, _round):
-        for square in squares:
-            # All guesses of the same square color = solved
-            if all([guess == square for guess in guesses]):
-                return (4 + i * 2) * (7 - _round)
+def calculate_round_value(guesses, _round):
+    for square in squares:
+        # All guesses of the same square color = solved
+        if all([guess == square for guess in guesses]):
+            return (4 + i * 2) * (7 - _round)
 
+def calculate_score(text):
     score = solved_count = 0
 
     # Scoring logic
