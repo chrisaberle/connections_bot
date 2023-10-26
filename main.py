@@ -31,6 +31,14 @@ SLACK_SIGNING_SECRET = os.environ['SLACK_SIGNING_SECRET'].encode('utf-8')
 # FastAPI instance
 app = FastAPI()
 
+square_dict = {
+    ":large_purple_square:": "🟪",
+    ":large_blue_square:": "🟦",
+    ":large_yellow_square:": "🟨",
+    ":large_green_square:": "🟩"
+}
+squares = "🟪🟦🟨🟩"
+
 # Define data models
 class SlackEvent(BaseModel):
     token: str
@@ -536,13 +544,12 @@ def is_puzzle_message(event) -> bool:
     )
 
 
-def is_valid_score_message(text, square_dict):
+def is_valid_score_message(text):
     # Replace square names in text with single-character emojis
     for square_name, square_char in square_dict.items():
         text = text.replace(square_name, square_char)
 
     # Identify and count the squares
-    squares = "🟪🟦🟨🟩"
     square_count = sum(1 for char in text if char in squares)
 
     # Check the conditions
@@ -559,12 +566,6 @@ async def process_puzzle_message(event):
     message_text = event['event']['text']
 
     # Check for valid message
-    square_dict = {
-        ":large_purple_square:": "🟪",
-        ":large_blue_square:": "🟦",
-        ":large_yellow_square:": "🟨",
-        ":large_green_square:": "🟩"
-    }
     if not is_valid_score_message(message_text, square_dict):
         # Log a message or notify the user in the channel
         logger.warning(f"Invalid puzzle message from user {event['event']['user']}: {message_text}")
@@ -603,41 +604,33 @@ async def process_puzzle_message(event):
 
     return "success"
 
-
-def calculate_score(text):
-    square_dict = {
-        ":large_purple_square:": "🟪",
-        ":large_blue_square:": "🟦",
-        ":large_yellow_square:": "🟨",
-        ":large_green_square:": "🟩"
-    }
-    score = 0
-
+def guesses_by_round(text):
     # Replace square names in text with single-character emojis
     for square_name, square_char in square_dict.items():
         text = text.replace(square_name, square_char)
 
     # Filter squares from the text and chunk them into attempts of size 4
-    squares = "🟪🟦🟨🟩"
     flat = [t for t in text if t in squares]
-    attempts = [flat[i:i + 4] for i in range(0, len(flat), 4)]
+    for i in range(0, len(flat), 4):
+        yield flat[i:i + 4]
+
+def calculate_round_value(guesses, _round):
+    for square in squares:
+        # All guesses of the same square color = solved
+        if all([guess == square for guess in guesses]):
+            return (4 + i * 2) * (7 - _round)
+
+def calculate_score(text):
+    score = solved_count = 0
 
     # Scoring logic
-    for round, guesses in enumerate(attempts):
-        inc = 0
-        if all(g == "🟪" for g in guesses):
-            inc += 10
-        elif all(g == "🟦" for g in guesses):
-            inc += 8
-        elif all(g == "🟨" for g in guesses):
-            inc += 6
-        elif all(g == "🟩" for g in guesses):
-            inc += 4
-        if round <= 4: inc *= (4 - round)
-        score += inc
+    for _round, guesses in guesses_by_round(text):
+        val = calculate_round_value(guesses, _round)
+        solved_count += 1
+        if val > 0 and solved_count < 4:
+            score += val
 
     return score
-
 
 # Deprecated in favor of Procfile once moved to hosting evironment
 # # Main entry point
